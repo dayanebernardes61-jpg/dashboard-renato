@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Dashboard – Renato Oliveira Móveis Planejados
-Sem tela de login. Abre direto no painel principal.
+Lê os dados ao vivo de uma Planilha Google (somente leitura).
+A edição é feita direto na Planilha Google. Sem tela de login.
 Tema: Laranja / Preto / Branco.
 """
 
-import glob
 import os
 
 import pandas as pd
@@ -13,23 +13,13 @@ import plotly.express as px
 import streamlit as st
 
 # ---------------------------------------------------------------------------
-# Configuração geral
+# Fonte de dados – Planilha Google
 # ---------------------------------------------------------------------------
-ARQUIVO_PADRAO = "Agenda de Entregas Renato Oliveira Móveis Planejados.xlsx"
+SHEET_ID  = "1NGap2QQUv5MbvqQrD5AlFR8nWsmxHnZ_DYHgdFQ8mV0"
+CSV_URL   = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+EDIT_URL  = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
+
 LOGO = "logo.png"
-
-
-def encontrar_planilha() -> str:
-    """Localiza a planilha mesmo que o nome varie um pouco (acentos/espaços)."""
-    if os.path.exists(ARQUIVO_PADRAO):
-        return ARQUIVO_PADRAO
-    candidatos = [f for f in glob.glob("*.xlsx") if "agenda" in f.lower()]
-    if candidatos:
-        return candidatos[0]
-    return ARQUIVO_PADRAO
-
-
-ARQUIVO = encontrar_planilha()
 
 # Nomes das colunas exatamente como estão na planilha
 COL_CLIENTE   = "Cliente"
@@ -80,11 +70,11 @@ st.markdown(
             padding: 14px 16px;
             margin-bottom: 10px;
         }}
-        .stButton>button {{
+        .stButton>button, .stLinkButton>a {{
             background: {LARANJA}; color: {BRANCO}; border: 0;
             border-radius: 10px; font-weight: 700; padding: 8px 18px;
         }}
-        .stButton>button:hover {{ background: #ff8533; color: {BRANCO}; }}
+        .stButton>button:hover, .stLinkButton>a:hover {{ background: #ff8533; color: {BRANCO}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -103,13 +93,27 @@ def moeda(valor: float) -> str:
         return "R$ 0,00"
 
 
+def texto_para_numero(serie: pd.Series) -> pd.Series:
+    """Converte texto monetário ('R$ 31.200,00', 'R$ -') em número."""
+    s = (serie.astype(str)
+         .str.replace("R$", "", regex=False)
+         .str.replace(" ", "", regex=False)
+         .str.replace(".", "", regex=False)      # separador de milhar
+         .str.replace(",", ".", regex=False))    # vírgula decimal -> ponto
+    return pd.to_numeric(s, errors="coerce").fillna(0)
+
+
+@st.cache_data(ttl=60)  # recarrega da planilha no máximo a cada 60s
 def carregar_dados() -> pd.DataFrame:
-    df = pd.read_excel(ARQUIVO)
-    # Tipagem segura
-    df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce")
+    df = pd.read_csv(CSV_URL)
+    df.columns = [c.strip() for c in df.columns]
+    # Converte colunas de valores
     for c in (COL_TOTAL, COL_ENTRADA, COL_POS):
         if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+            df[c] = texto_para_numero(df[c])
+    # Converte datas
+    if COL_DATA in df.columns:
+        df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce")
     return df
 
 
@@ -135,19 +139,28 @@ with col_titulo:
         unsafe_allow_html=True,
     )
 
-if not os.path.exists(LOGO):
-    st.info("💡 Coloque um arquivo **logo.png** nesta pasta para exibir a logomarca no topo.")
-
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Carrega dados
+# Carrega dados (com botão de atualizar)
 # ---------------------------------------------------------------------------
-if not os.path.exists(ARQUIVO):
-    st.error(f"Arquivo não encontrado: {ARQUIVO}")
+top1, top2 = st.columns([4, 1])
+with top2:
+    if st.button("🔄 Atualizar dados"):
+        st.cache_data.clear()
+        st.rerun()
+
+try:
+    df = carregar_dados()
+except Exception as e:
+    st.error("Não consegui ler a Planilha Google. Verifique se o link continua "
+             "compartilhado como 'Qualquer pessoa com o link'.")
+    st.caption(f"Detalhe técnico: {e}")
     st.stop()
 
-df = carregar_dados()
+if df.empty:
+    st.warning("A planilha está vazia.")
+    st.stop()
 
 # ---------------------------------------------------------------------------
 # KPIs
@@ -244,37 +257,25 @@ else:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Tabela interativa + edição / inclusão de linhas
+# Tabela (visualização) + botão para editar na Planilha Google
 # ---------------------------------------------------------------------------
-st.subheader("📝 Tabela de Clientes (editar / adicionar)")
-st.caption("Edite as células direto na tabela, use a última linha vazia para adicionar "
-           "um novo cliente e clique em **Salvar alterações**.")
+cab1, cab2 = st.columns([3, 1])
+with cab1:
+    st.subheader("📋 Dados dos Clientes")
+with cab2:
+    st.link_button("✏️ Editar na Planilha Google", EDIT_URL)
 
-editado = st.data_editor(
+st.caption("Para adicionar ou alterar clientes, clique em **Editar na Planilha Google**. "
+           "Depois volte aqui e clique em **🔄 Atualizar dados**.")
+
+st.dataframe(
     df,
-    num_rows="dynamic",
     use_container_width=True,
-    key="editor",
+    hide_index=True,
     column_config={
         COL_TOTAL:   st.column_config.NumberColumn("Valor Total do Serviço", format="R$ %.2f"),
         COL_ENTRADA: st.column_config.NumberColumn("Valor da Entrada", format="R$ %.2f"),
-        COL_POS:     st.column_config.NumberColumn(
-            "Valor Pós Obra Concluída", format="R$ %.2f",
-            help="Calculado automaticamente (Total − Entrada) ao salvar.", disabled=True),
+        COL_POS:     st.column_config.NumberColumn("Valor Pós Obra Concluída", format="R$ %.2f"),
         COL_DATA:    st.column_config.DateColumn("Data Final para Entrega", format="DD/MM/YYYY"),
-        COL_CONCLUIDA: st.column_config.SelectboxColumn(
-            "Obra foi Concluída", options=["Sim", "Não"]),
-        COL_PAGOU:   st.column_config.SelectboxColumn("Pagou Entrada", options=["Sim", "Não"]),
-        COL_PARCELOU: st.column_config.SelectboxColumn("Parcelou Restante?", options=["Sim", "Não"]),
     },
 )
-
-if st.button("💾 Salvar alterações"):
-    salvar = editado.copy()
-    # Recalcula o saldo pós-obra para manter consistência
-    salvar[COL_POS] = (pd.to_numeric(salvar[COL_TOTAL], errors="coerce").fillna(0)
-                       - pd.to_numeric(salvar[COL_ENTRADA], errors="coerce").fillna(0))
-    salvar[COL_DATA] = pd.to_datetime(salvar[COL_DATA], errors="coerce")
-    salvar.to_excel(ARQUIVO, index=False)
-    st.success("✅ Dados salvos na planilha com sucesso!")
-    st.rerun()
