@@ -85,7 +85,9 @@ st.markdown(
 # Funções auxiliares
 # ---------------------------------------------------------------------------
 def moeda(valor: float) -> str:
-    """Formata número no padrão R$ brasileiro."""
+    """Formata número no padrão R$ brasileiro. Oculta se o usuário não pediu para exibir."""
+    if not st.session_state.get("valores_visiveis", False):
+        return "R$ ••••••"
     try:
         return ("R$ {:,.2f}".format(float(valor))
                 .replace(",", "X").replace(".", ",").replace("X", "."))
@@ -123,6 +125,12 @@ def esta_concluida(serie: pd.Series) -> pd.Series:
 
 
 # ---------------------------------------------------------------------------
+# Estado do "olho" – valores sempre começam ocultos ao abrir o app
+# ---------------------------------------------------------------------------
+if "valores_visiveis" not in st.session_state:
+    st.session_state.valores_visiveis = False
+
+# ---------------------------------------------------------------------------
 # Cabeçalho + Logo
 # ---------------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 4])
@@ -144,9 +152,14 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Carrega dados (com botão de atualizar)
 # ---------------------------------------------------------------------------
-top1, top2 = st.columns([4, 1])
+top1, top2, top3 = st.columns([3, 1, 1])
 with top2:
-    if st.button("🔄 Atualizar dados"):
+    rotulo_olho = "🙈 Ocultar valores" if st.session_state.valores_visiveis else "👁️ Mostrar valores"
+    if st.button(rotulo_olho, use_container_width=True):
+        st.session_state.valores_visiveis = not st.session_state.valores_visiveis
+        st.rerun()
+with top3:
+    if st.button("🔄 Atualizar dados", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
@@ -268,14 +281,30 @@ with cab2:
 st.caption("Para adicionar ou alterar clientes, clique em **Editar na Planilha Google**. "
            "Depois volte aqui e clique em **🔄 Atualizar dados**.")
 
-st.dataframe(
-    df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
+colunas_valor = (COL_TOTAL, COL_ENTRADA, COL_POS)
+df_exibicao = df.copy()
+
+col_config = {
+    COL_DATA: st.column_config.DateColumn("Data Final para Entrega", format="DD/MM/YYYY"),
+}
+if st.session_state.valores_visiveis:
+    col_config.update({
         COL_TOTAL:   st.column_config.NumberColumn("Valor Total do Serviço", format="R$ %.2f"),
         COL_ENTRADA: st.column_config.NumberColumn("Valor da Entrada", format="R$ %.2f"),
         COL_POS:     st.column_config.NumberColumn("Valor Pós Obra Concluída", format="R$ %.2f"),
-        COL_DATA:    st.column_config.DateColumn("Data Final para Entrega", format="DD/MM/YYYY"),
-    },
+    })
+else:
+    for c in colunas_valor:
+        df_exibicao[c] = "R$ ••••••"
+    col_config.update({
+        COL_TOTAL:   st.column_config.TextColumn("Valor Total do Serviço"),
+        COL_ENTRADA: st.column_config.TextColumn("Valor da Entrada"),
+        COL_POS:     st.column_config.TextColumn("Valor Pós Obra Concluída"),
+    })
+
+st.dataframe(
+    df_exibicao,
+    use_container_width=True,
+    hide_index=True,
+    column_config=col_config,
 )
