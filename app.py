@@ -19,7 +19,7 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 SHEET_ID  = "1NGap2QQUv5MbvqQrD5AlFR8nWsmxHnZ_DYHgdFQ8mV0"
 CSV_URL   = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
-EDIT_URL  = f"https://docs.google.com/spreadsheets/d/{SHEE
+EDIT_URL  = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
 APP_URL   = "https://dashboard-renato-8stuuh6vswsn4cnwrvdfge.streamlit.app/"
 
 LOGO = "logo.png"
@@ -49,21 +49,21 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# PWA – manifest e ícone embutidos como data URI (não depe
+# PWA – manifest e ícone embutidos como data URI (não depende de arquivos
 # estáticos servidos pelo Streamlit Cloud, nem do "window.parent": no Streamlit
-# Community Cloud o app roda dentro de um iframe interno d
+# Community Cloud o app roda dentro de um iframe interno da própria
 # plataforma, então usamos "window.top" para alcançar o documento real).
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 def _data_uri(caminho: str, mime: str) -> str:
     try:
         with open(caminho, "rb") as f:
-            return f"data:{mime};base64,{base64.b64encode(
+            return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
     except FileNotFoundError:
         return ""
 
 
 _icon_192_uri = _data_uri("static/icon-192.png", "image/png")
-_icon_512_uri = _data_uri("static/icon-512.png", "image/pn
+_icon_512_uri = _data_uri("static/icon-512.png", "image/png")
 
 _manifest = {
     "name": "Renato Oliveira Móveis Planejados",
@@ -77,7 +77,7 @@ _manifest = {
     "theme_color": PRETO,
     "icons": [
         {"src": _icon_192_uri, "sizes": "192x192", "type": "image/png", "purpose": "any"},
-        {"src": _icon_512_uri, "sizes": "512x512", "type":"},
+        {"src": _icon_512_uri, "sizes": "512x512", "type": "image/png", "purpose": "any"},
     ],
 }
 _manifest_uri = "data:application/manifest+json;base64," + base64.b64encode(
@@ -95,15 +95,15 @@ _pwa_script = (
                 .map(([k, v]) => `[${k}="${v.slice(0, 40)}"]`).join('');
             if (head.querySelector(selector)) return;
             const el = doc.createElement(tag);
-            Object.entries(attrs).forEach(([k, v]) => el.s
+            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
             head.appendChild(el);
         }
         addTag('link', {rel: 'manifest', href: '__MANIFEST_URI__'});
-        addTag('link', {rel: 'apple-touch-icon', href: '__
+        addTag('link', {rel: 'apple-touch-icon', href: '__ICON_URI__'});
         addTag('meta', {name: 'theme-color', content: '__THEME_COLOR__'});
-        addTag('meta', {name: 'apple-mobile-web-app-capabl
+        addTag('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'});
         addTag('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'});
-        addTag('meta', {name: 'apple-mobile-web-app-title');
+        addTag('meta', {name: 'apple-mobile-web-app-title', content: 'Renato Oliveira'});
     })();
     </script>
     """
@@ -129,7 +129,7 @@ st.markdown(
             border-left: 6px solid {LARANJA};
             box-shadow: 0 4px 14px rgba(0,0,0,.45);
         }}
-        .kpi-titulo {{ font-size: 0.95rem; color: #BBBBBB;
+        .kpi-titulo {{ font-size: 0.95rem; color: #BBBBBB; margin-bottom: 6px; }}
         .kpi-valor  {{ font-size: 1.7rem; font-weight: 800; color: {LARANJA}; }}
         .montagem-card {{
             background: {CINZA};
@@ -141,9 +141,9 @@ st.markdown(
         }}
         .stButton>button, .stLinkButton>a {{
             background: {LARANJA}; color: {BRANCO}; border: 0;
-            border-radius: 10px; font-weight: 700; padding
+            border-radius: 10px; font-weight: 700; padding: 8px 18px;
         }}
-        .stButton>button:hover, .stLinkButton>a:hover {{ bRANCO}; }}
+        .stButton>button:hover, .stLinkButton>a:hover {{ background: #ff8533; color: {BRANCO}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -155,21 +155,21 @@ st.markdown(
 # ---------------------------------------------------------------------------
 def moeda(valor: float) -> str:
     """Formata número no padrão R$ brasileiro. Oculta se o usuário não pediu para exibir."""
-    if not st.session_state.get("valores_visiveis", False)
+    if not st.session_state.get("valores_visiveis", False):
         return "R$ ••••••"
     try:
         return ("R$ {:,.2f}".format(float(valor))
-                .replace(",", "X").replace(".", ",").repla
+                .replace(",", "X").replace(".", ",").replace("X", "."))
     except (ValueError, TypeError):
         return "R$ 0,00"
 
 
 def texto_para_numero(serie: pd.Series) -> pd.Series:
-    """Converte texto monetário ('R$ 31.200,00', 'R$ -') e
+    """Converte texto monetário ('R$ 31.200,00', 'R$ -') em número."""
     s = (serie.astype(str)
          .str.replace("R$", "", regex=False)
          .str.replace(" ", "", regex=False)
-         .str.replace(".", "", regex=False)      # separad
+         .str.replace(".", "", regex=False)      # separador de milhar
          .str.replace(",", ".", regex=False))    # vírgula decimal -> ponto
     return pd.to_numeric(s, errors="coerce").fillna(0)
 
@@ -193,25 +193,25 @@ def esta_concluida(serie: pd.Series) -> pd.Series:
     return s.isin(["sim", "s", "true", "1"])
 
 
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Estado do "olho" – valores sempre começam ocultos ao abrir o app
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 if "valores_visiveis" not in st.session_state:
     st.session_state.valores_visiveis = False
 
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Cabeçalho + Logo
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 4])
 with col_logo:
     if os.path.exists(LOGO):
         st.image(LOGO, use_container_width=True)
     else:
-        st.markdown(f"<h2 style='color:{LARANJA};margin:0'True)
+        st.markdown(f"<h2 style='color:{LARANJA};margin:0'>RO</h2>", unsafe_allow_html=True)
 with col_titulo:
     st.markdown(
         f"<h1 style='margin-bottom:0'>Renato Oliveira "
-        f"<span style='color:{LARANJA}'>Móveis Planejados<
+        f"<span style='color:{LARANJA}'>Móveis Planejados</span></h1>"
         "<p style='color:#999;margin-top:4px'>Painel financeiro e cronograma de entregas</p>",
         unsafe_allow_html=True,
     )
@@ -223,9 +223,9 @@ st.divider()
 # ---------------------------------------------------------------------------
 top1, top2, top3 = st.columns([3, 1, 1])
 with top2:
-    rotulo_olho = "🙈 Ocultar valores" if st.session_statestrar valores"
+    rotulo_olho = "🙈 Ocultar valores" if st.session_state.valores_visiveis else "👁️ Mostrar valores"
     if st.button(rotulo_olho, use_container_width=True):
-        st.session_state.valores_visiveis = not st.session
+        st.session_state.valores_visiveis = not st.session_state.valores_visiveis
         st.rerun()
 with top3:
     if st.button("🔄 Atualizar dados", use_container_width=True):
@@ -235,7 +235,7 @@ with top3:
 try:
     df = carregar_dados()
 except Exception as e:
-    st.error("Não consegui ler a Planilha Google. Verifiqu
+    st.error("Não consegui ler a Planilha Google. Verifique se o link continua "
              "compartilhado como 'Qualquer pessoa com o link'.")
     st.caption(f"Detalhe técnico: {e}")
     st.stop()
@@ -277,13 +277,13 @@ st.subheader("📅 Cronograma de Entregas")
 
 dfc = df.dropna(subset=[COL_DATA]).copy()
 if dfc.empty:
-    st.warning("Nenhuma data de entrega válida encontrada.
+    st.warning("Nenhuma data de entrega válida encontrada.")
 else:
     hoje = pd.Timestamp.now().normalize()
     dfc["_ini"] = dfc[COL_DATA].apply(lambda d: min(hoje, d))
-    dfc["_fim"] = dfc[COL_DATA].apply(lambda d: max(hoje,
+    dfc["_fim"] = dfc[COL_DATA].apply(lambda d: max(hoje, d))
     dfc["Status"] = dfc[COL_CONCLUIDA].apply(
-        lambda v: "Concluída" if str(v).strip().lower() in
+        lambda v: "Concluída" if str(v).strip().lower() in ("sim", "s") else "Pendente"
     )
     dfc = dfc.sort_values(COL_DATA)
 
@@ -293,7 +293,7 @@ else:
         x_end="_fim",
         y=COL_CLIENTE,
         color="Status",
-        color_discrete_map={"Pendente": LARANJA, "Concluíd
+        color_discrete_map={"Pendente": LARANJA, "Concluída": "#5A5A5A"},
         hover_data={COL_DATA: "|%d/%m/%Y", "_ini": False, "_fim": False},
     )
     fig.update_yaxes(autorange="reversed", title="")
@@ -309,9 +309,9 @@ else:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Lista de Montagem (obras pendentes)
-# --------------------------------------------------------
+# ---------------------------------------------------------------------------
 st.subheader("🛠️ Lista de Montagem — Obras Pendentes")
 
 pend = df[~esta_concluida(df[COL_CONCLUIDA])].copy()
@@ -321,7 +321,7 @@ else:
     cols = st.columns(min(3, len(pend)))
     for i, (_, linha) in enumerate(pend.iterrows()):
         data_txt = (linha[COL_DATA].strftime("%d/%m/%Y")
-                    if pd.notna(linha[COL_DATA]) else "Sem
+                    if pd.notna(linha[COL_DATA]) else "Sem data")
         with cols[i % len(cols)]:
             st.markdown(
                 f"""
@@ -329,7 +329,7 @@ else:
                     <div style='font-size:1.15rem;font-weight:800;color:{LARANJA}'>
                         {linha[COL_CLIENTE]}</div>
                     <div style='color:#ccc;margin-top:4px'>📅 Entrega: <b>{data_txt}</b></div>
-                    <div style='color:#ccc'>💰 A receber: ></div>
+                    <div style='color:#ccc'>💰 A receber: <b>{moeda(linha[COL_POS])}</b></div>
                     <div style='color:#888;font-size:.85rem'>Serviço nº {linha[COL_NUM]}</div>
                 </div>
                 """,
@@ -339,15 +339,15 @@ else:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Tabela (visualização) + botão para editar na Planilha Go
+# Tabela (visualização) + botão para editar na Planilha Google
 # ---------------------------------------------------------------------------
 cab1, cab2 = st.columns([3, 1])
 with cab1:
     st.subheader("📋 Dados dos Clientes")
 with cab2:
-    st.link_button("✏️ Editar na Planilha Google", EDIT_UR
+    st.link_button("✏️ Editar na Planilha Google", EDIT_URL)
 
-st.caption("Para adicionar ou alterar clientes, clique em . "
+st.caption("Para adicionar ou alterar clientes, clique em **Editar na Planilha Google**. "
            "Depois volte aqui e clique em **🔄 Atualizar dados**.")
 
 colunas_valor = (COL_TOTAL, COL_ENTRADA, COL_POS)
@@ -359,7 +359,7 @@ col_config = {
 if st.session_state.valores_visiveis:
     col_config.update({
         COL_TOTAL:   st.column_config.NumberColumn("Valor Total do Serviço", format="R$ %.2f"),
-        COL_ENTRADA: st.column_config.NumberColumn("Valor ),
+        COL_ENTRADA: st.column_config.NumberColumn("Valor da Entrada", format="R$ %.2f"),
         COL_POS:     st.column_config.NumberColumn("Valor Pós Obra Concluída", format="R$ %.2f"),
     })
 else:
@@ -367,7 +367,7 @@ else:
         df_exibicao[c] = "R$ ••••••"
     col_config.update({
         COL_TOTAL:   st.column_config.TextColumn("Valor Total do Serviço"),
-        COL_ENTRADA: st.column_config.TextColumn("Valor da
+        COL_ENTRADA: st.column_config.TextColumn("Valor da Entrada"),
         COL_POS:     st.column_config.TextColumn("Valor Pós Obra Concluída"),
     })
 
