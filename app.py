@@ -46,6 +46,35 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# PWA – manifest, ícone e cor de tema, para instalar como app no celular
+# ---------------------------------------------------------------------------
+st.iframe(
+    """
+    <script>
+    (function () {
+        const doc = window.parent.document;
+        const head = doc.querySelector('head');
+        function addTag(tag, attrs) {
+            const selector = tag + Object.entries(attrs)
+                .map(([k, v]) => `[${k}="${v}"]`).join('');
+            if (head.querySelector(selector)) return;
+            const el = doc.createElement(tag);
+            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+            head.appendChild(el);
+        }
+        addTag('link', {rel: 'manifest', href: 'app/static/manifest.json'});
+        addTag('link', {rel: 'apple-touch-icon', href: 'app/static/icon-192.png'});
+        addTag('meta', {name: 'theme-color', content: '#0F0F0F'});
+        addTag('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'});
+        addTag('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'});
+        addTag('meta', {name: 'apple-mobile-web-app-title', content: 'Renato Oliveira'});
+    })();
+    </script>
+    """,
+    height=1,
+)
+
+# ---------------------------------------------------------------------------
 # Estilo (CSS) – fundo escuro, destaques em laranja
 # ---------------------------------------------------------------------------
 st.markdown(
