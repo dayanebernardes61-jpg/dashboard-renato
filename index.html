@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Renato Oliveira Móveis Planejados</title>
+
+<link rel="manifest" href="static/manifest.json">
+<link rel="apple-touch-icon" href="static/icon-192.png">
+<meta name="theme-color" content="#0F0F0F">
+
+<!-- Tags que o iOS realmente le para abrir em tela cheia, sem barra do Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Renato Oliveira">
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #0F0F0F;
+    overflow: hidden;
+  }
+  iframe {
+    border: 0;
+    display: block;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh; /* respeita a área segura em iPhones com notch/ilha dinamica */
+  }
+</style>
+</head>
+<body>
+  <iframe
+    src="https://dashboard-renato-8stuuh6vswsn4cnwrvdfge.streamlit.app/?embed=true"
+    allow="clipboard-write"
+    title="Renato Oliveira Moveis Planejados"
+  ></iframe>
+</body>
+</html>
